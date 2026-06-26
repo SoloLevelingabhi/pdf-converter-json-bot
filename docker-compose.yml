@@ -1,0 +1,43 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  bot:
+    build: .
+    container_name: pdf-converter-bot
+    restart: unless-stopped
+    environment:
+      - API_ID=${API_ID}
+      - API_HASH=${API_HASH}
+      - BOT_TOKEN=${BOT_TOKEN}
+      - MONGO_URI=${MONGO_URI}
+      - DATABASE_NAME=${DATABASE_NAME}
+      - OWNER_ID=${OWNER_ID}
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./logs:/app/logs
+      - ./temp:/app/temp
+    networks:
+      - bot-network
+
+  mongo:
+    image: mongo:6.0
+    container_name: pdf-converter-mongo
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password123
+      - MONGO_INITDB_DATABASE=pdf_converter
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - bot-network
+    ports:
+      - "27017:27017"
+
+volumes:
+  mongo-data:
+
+networks:
+  bot-network:
+    driver: bridge
