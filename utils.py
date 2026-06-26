@@ -6,8 +6,8 @@ import base64
 import json
 import hashlib
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
-import google.generativeai as genai
+from typing import Dict, List, Optional, Tuple, Callable
+from openai import OpenAI
 from PIL import Image
 import io
 import os
@@ -42,12 +42,16 @@ def setup_logging():
 # Initialize logger
 logger = setup_logging()
 
-# Initialize Gemini
-if Config.GEMINI_API_KEY:
-    genai.configure(api_key=Config.GEMINI_API_KEY)
-    logger.info("Gemini API configured successfully")
+# Initialize AgentRouter OpenAI client
+client = None
+if Config.AGENTROUTER_API_KEY:
+    client = OpenAI(
+        api_key=Config.AGENTROUTER_API_KEY,
+        base_url=Config.AGENTROUTER_BASE_URL
+    )
+    logger.info(f"AgentRouter API configured with model: {Config.VISION_MODEL}")
 else:
-    logger.warning("GEMINI_API_KEY not set - extraction will use fallback method")
+    logger.warning("AGENTROUTER_API_KEY not set - extraction will use fallback regex method")
 
 class ProgressTracker:
     """Track progress of conversion"""
@@ -110,11 +114,15 @@ def pdf_to_images(pdf_path: str) -> List[bytes]:
         logger.error(f"PDF to image conversion error: {e}")
         return []
 
-def extract_with_gemini(pdf_path: str, pdf_name: str, progress_callback=None) -> Dict:
-    """Extract questions from PDF using Gemini API with page-by-page processing"""
+def encode_image_to_base64(image_bytes: bytes) -> str:
+    """Encode image bytes to base64 string"""
+    return base64.b64encode(image_bytes).decode('utf-8')
 
-    if not Config.GEMINI_API_KEY:
-        logger.error("GEMINI_API_KEY not configured")
+def extract_with_agentrouter(pdf_path: str, pdf_name: str, progress_callback=None) -> Dict:
+    """Extract questions from PDF using AgentRouter API with vision model"""
+
+    if not client:
+        logger.error("AgentRouter client not configured")
         return None
 
     try:
@@ -131,55 +139,77 @@ def extract_with_gemini(pdf_path: str, pdf_name: str, progress_callback=None) ->
         total_pages = len(images)
         logger.info(f"Converted PDF to {total_pages} images")
 
-        # Initialize Gemini model
-        model = genai.GenerativeModel('gemini-1.5-flash')
-
         all_questions = []
         question_counter = 0
 
-        # Process each page
-        for page_num, img_data in enumerate(images, 1):
+        # Process pages in batches for efficiency
+        batch_size = 5
+
+        for batch_start in range(0, total_pages, batch_size):
+            batch_end = min(batch_start + batch_size, total_pages)
+            batch_images = images[batch_start:batch_end]
+
             if progress_callback:
-                progress_percent = 10 + int((page_num / total_pages) * 70)
-                progress_callback(progress_percent, f"Processing page {page_num}/{total_pages} with Gemini...")
+                progress_percent = 10 + int((batch_end / total_pages) * 70)
+                progress_callback(progress_percent, f"Processing pages {batch_start+1}-{batch_end} with AgentRouter AI...")
 
             try:
-                # Create image part for Gemini
-                image = Image.open(io.BytesIO(img_data))
+                # Build messages with images
+                content = []
 
-                prompt = f"""You are an expert at extracting questions from SSC exam PDFs.
+                # Add text prompt
+                prompt_text = f"""You are an expert at extracting questions from SSC exam PDFs.
 
-Extract ALL questions from this page. Return ONLY a valid JSON array of questions in this exact format:
+Extract ALL questions from these {len(batch_images)} page(s). Return ONLY a valid JSON array:
 
 [
   {{
     "questionNumber": 1,
-    "question": "The question text here",
-    "optionA": "First option text",
-    "optionB": "Second option text",
-    "optionC": "Third option text",
-    "optionD": "Fourth option text",
-    "correctAnswer": "A",
-    "solution": "Explanation text if available",
-    "examName": "SSC CGL/CHSL/MTS etc if visible",
-    "subtopic": "Topic name like History/Geography/Polity etc",
+    "question": "Full question text here",
+    "optionA": "Option A text",
+    "optionB": "Option B text",
+    "optionC": "Option C text",
+    "optionD": "Option D text",
+    "correctAnswer": "A/B/C/D if shown",
+    "solution": "Explanation if available",
+    "examName": "Exam name like SSC CGL/CHSL/MTS if visible",
+    "subtopic": "Subject/topic like History/Geography/Polity/Science",
     "difficulty": "Easy/Medium/Hard"
   }}
 ]
 
 RULES:
-1. Extract each question completely with all options
-2. If correct answer is shown, include it (A/B/C/D)
-3. If explanation/solution is visible, include it
-4. Preserve exact wording - do not paraphrase
-5. If no questions on this page, return empty array []
+1. Extract ALL questions from ALL pages in the images
+2. Preserve exact wording and formatting
+3. Include all 4 options (A, B, C, D)
+4. If correct answer is visible, include it
+5. If explanation/solution is visible, include it
 6. Return ONLY the JSON array, no other text
-7. Do not add any markdown formatting or backticks"""
+7. No markdown formatting or backticks
+8. Empty array [] if no questions found"""
 
-                response = model.generate_content([prompt, image])
+                content.append({"type": "text", "text": prompt_text})
+
+                # Add images
+                for img_bytes in batch_images:
+                    img_base64 = encode_image_to_base64(img_bytes)
+                    content.append({
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/png;base64,{img_base64}"
+                        }
+                    })
+
+                # Call AgentRouter API
+                response = client.chat.completions.create(
+                    model=Config.VISION_MODEL,
+                    messages=[{"role": "user", "content": content}],
+                    max_tokens=4096,
+                    temperature=0.1
+                )
 
                 # Clean response text
-                response_text = response.text.strip()
+                response_text = response.choices[0].message.content.strip()
 
                 # Remove potential markdown code blocks
                 if response_text.startswith("```"):
@@ -188,151 +218,9 @@ RULES:
 
                 # Parse JSON
                 try:
-                    page_questions = json.loads(response_text)
-
-                    # Validate and format questions
-                    for q in page_questions:
-                        question_counter += 1
-                        formatted_q = {
-                            "questionId": f"QID-SGK-2025-{str(question_counter).zfill(6)}",
-                            "questionNumber": q.get("questionNumber", question_counter),
-                            "questionFormat": "MCQ",
-                            "question": q.get("question", ""),
-                            "questionData": {},
-                            "optionA": q.get("optionA", ""),
-                            "optionB": q.get("optionB", ""),
-                            "optionC": q.get("optionC", ""),
-                            "optionD": q.get("optionD", ""),
-                            "correctAnswer": q.get("correctAnswer", ""),
-                            "correctOptionText": get_option_text(q.get("correctAnswer", ""), q),
-                            "examName": q.get("examName", "SSC Exam"),
-                            "solution": q.get("solution", ""),
-                            "subtopic": q.get("subtopic", "General Knowledge"),
-                            "hint": "",
-                            "difficulty": q.get("difficulty", "Medium"),
-                            "status": "ACTIVE",
-                            "version": 1
-                        }
-                        all_questions.append(formatted_q)
-
-                    logger.info(f"Page {page_num}: Extracted {len(page_questions)} questions")
-
-                except json.JSONDecodeError as e:
-                    logger.error(f"Page {page_num}: JSON parse error - {e}")
-                    logger.debug(f"Response was: {response_text[:500]}")
-                    continue
-
-            except Exception as e:
-                logger.error(f"Page {page_num} processing error: {e}")
-                continue
-
-        if progress_callback:
-            progress_callback(85, "Finalizing extraction...")
-
-        # Create output JSON
-        output = {
-            "schemaVersion": "1.0",
-            "pdfName": pdf_name,
-            "topic": "Static GK",
-            "topicCode": "SGK",
-            "totalQuestions": len(all_questions),
-            "questions": all_questions
-        }
-
-        return output
-
-    except Exception as e:
-        logger.error(f"Gemini extraction error: {e}")
-        return None
-
-def get_option_text(answer: str, question: Dict) -> str:
-    """Get the text of the correct option"""
-    if answer == 'A':
-        return question.get("optionA", "")
-    elif answer == 'B':
-        return question.get("optionB", "")
-    elif answer == 'C':
-        return question.get("optionC", "")
-    elif answer == 'D':
-        return question.get("optionD", "")
-    return ""
-
-def extract_with_gemini_batch(pdf_path: str, pdf_name: str, batch_size: int = 5, progress_callback=None) -> Dict:
-    """Extract questions from PDF using Gemini API with batch processing for large PDFs"""
-
-    if not Config.GEMINI_API_KEY:
-        logger.error("GEMINI_API_KEY not configured")
-        return None
-
-    try:
-        if progress_callback:
-            progress_callback(5, "Converting PDF to images...")
-
-        images = pdf_to_images(pdf_path)
-
-        if not images:
-            return None
-
-        total_pages = len(images)
-        logger.info(f"Converted PDF to {total_pages} images")
-
-        model = genai.GenerativeModel('gemini-1.5-flash')
-
-        all_questions = []
-        question_counter = 0
-
-        # Process in batches
-        for batch_start in range(0, total_pages, batch_size):
-            batch_end = min(batch_start + batch_size, total_pages)
-            batch_images = images[batch_start:batch_end]
-
-            if progress_callback:
-                progress_percent = 10 + int((batch_end / total_pages) * 70)
-                progress_callback(progress_percent, f"Processing pages {batch_start+1}-{batch_end} with Gemini...")
-
-            try:
-                # Create image parts
-                image_parts = [Image.open(io.BytesIO(img)) for img in batch_images]
-
-                prompt = f"""You are extracting questions from SSC exam PDF pages.
-
-Extract ALL questions from these {len(batch_images)} page(s). Return ONLY a valid JSON array:
-
-[
-  {{
-    "questionNumber": 1,
-    "question": "Full question text",
-    "optionA": "Option A text",
-    "optionB": "Option B text",
-    "optionC": "Option C text",
-    "optionD": "Option D text",
-    "correctAnswer": "A/B/C/D if shown",
-    "solution": "Explanation if available",
-    "examName": "Exam name if visible",
-    "subtopic": "Subject/topic name",
-    "difficulty": "Easy/Medium/Hard"
-  }}
-]
-
-RULES:
-1. Extract ALL questions from ALL pages
-2. Preserve exact wording
-3. Return ONLY the JSON array
-4. No markdown formatting or backticks
-5. Empty array if no questions found"""
-
-                response = model.generate_content([prompt] + image_parts)
-
-                response_text = response.text.strip()
-
-                # Clean response
-                if response_text.startswith("```"):
-                    response_text = re.sub(r'^```json?\s*', '', response_text)
-                    response_text = re.sub(r'\s*```$', '', response_text)
-
-                try:
                     batch_questions = json.loads(response_text)
 
+                    # Validate and format questions
                     for q in batch_questions:
                         question_counter += 1
                         formatted_q = {
@@ -361,6 +249,7 @@ RULES:
 
                 except json.JSONDecodeError as e:
                     logger.error(f"Batch JSON parse error: {e}")
+                    logger.debug(f"Response was: {response_text[:500]}")
                     continue
 
             except Exception as e:
@@ -370,6 +259,7 @@ RULES:
         if progress_callback:
             progress_callback(85, "Finalizing extraction...")
 
+        # Create output JSON
         output = {
             "schemaVersion": "1.0",
             "pdfName": pdf_name,
@@ -382,31 +272,36 @@ RULES:
         return output
 
     except Exception as e:
-        logger.error(f"Gemini batch extraction error: {e}")
+        logger.error(f"AgentRouter extraction error: {e}")
         return None
 
-def process_questions_gemini(pdf_path: str, pdf_name: str, progress_callback=None) -> Dict:
-    """Main function to process PDF with Gemini API - uses batch processing for efficiency"""
+def get_option_text(answer: str, question: Dict) -> str:
+    """Get the text of the correct option"""
+    if answer == 'A':
+        return question.get("optionA", "")
+    elif answer == 'B':
+        return question.get("optionB", "")
+    elif answer == 'C':
+        return question.get("optionC", "")
+    elif answer == 'D':
+        return question.get("optionD", "")
+    return ""
 
-    if not Config.GEMINI_API_KEY:
-        logger.warning("GEMINI_API_KEY not set, using fallback regex extraction")
+def process_questions_agentrouter(pdf_path: str, pdf_name: str, progress_callback=None) -> Dict:
+    """Main function to process PDF with AgentRouter API"""
+
+    if not client:
+        logger.warning("AgentRouter not configured, using fallback regex extraction")
         return process_questions_regex(pdf_path, pdf_name, progress_callback)
 
-    # Use batch processing (more efficient for large PDFs)
-    result = extract_with_gemini_batch(pdf_path, pdf_name, batch_size=5, progress_callback=progress_callback)
+    # Use AgentRouter extraction
+    result = extract_with_agentrouter(pdf_path, pdf_name, progress_callback)
 
     if result and len(result.get("questions", [])) > 0:
         return result
 
-    # Fallback to single-page processing
-    logger.info("Batch extraction yielded no results, trying single-page mode...")
-    result = extract_with_gemini(pdf_path, pdf_name, progress_callback=progress_callback)
-
-    if result and len(result.get("questions", [])) > 0:
-        return result
-
-    # Last resort: regex extraction
-    logger.warning("Gemini extraction failed, falling back to regex")
+    # Fallback to regex extraction
+    logger.warning("AgentRouter extraction yielded no results, falling back to regex")
     return process_questions_regex(pdf_path, pdf_name, progress_callback)
 
 def process_questions_regex(pdf_path: str, pdf_name: str, progress_callback=None) -> Dict:
@@ -546,8 +441,9 @@ def process_questions_regex(pdf_path: str, pdf_name: str, progress_callback=None
             "questions": []
         }
 
-# Keep old function name for compatibility
+# Keep old function names for compatibility
 process_questions = process_questions_regex
+process_questions_gemini = process_questions_agentrouter
 
 def validate_json_output(data: Dict, expected_count: int) -> Dict:
     """Validate JSON output"""

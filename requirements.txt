@@ -7,4 +7,4 @@ psutil
 aiofiles
 pdf2image
 Pillow
-google-generativeai
+openai

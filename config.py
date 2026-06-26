@@ -27,8 +27,11 @@ class Config:
     BATCH_SIZE = int(os.getenv("BATCH_SIZE", 10))
     MAX_CONCURRENT = int(os.getenv("MAX_CONCURRENT", 5))
     
-    # Gemini API Configuration
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+    # AgentRouter API Configuration (OpenAI-compatible)
+    AGENTROUTER_API_KEY = os.getenv("AGENTROUTER_API_KEY", "")
+    AGENTROUTER_BASE_URL = os.getenv("AGENTROUTER_BASE_URL", "https://agentrouter.org/v1")
+    # Vision model for PDF extraction (supports image input)
+    VISION_MODEL = os.getenv("VISION_MODEL", "google/gemini-2.5-flash")
 
     # Feature Flags
     ENABLE_OCR = os.getenv("ENABLE_OCR", "false").lower() == "true"

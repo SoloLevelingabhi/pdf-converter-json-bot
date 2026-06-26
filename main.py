@@ -28,7 +28,7 @@ from utils import (
     ProgressTracker,
     extract_pdf_text,
     process_questions,
-    process_questions_gemini,
+    process_questions_agentrouter,
     validate_json_output,
     format_file_size,
     calculate_eta
@@ -615,9 +615,9 @@ async def handle_pdf(client, message: Message):
 
         active_conversions[user_id]["recent_logs"].append(f"📄 Found {total_pages} pages")
 
-        # Process with Gemini AI
+        # Process with AgentRouter AI
         active_conversions[user_id]["current_step"] = "Converting PDF to images..."
-        active_conversions[user_id]["recent_logs"].append("🤖 Using Gemini AI for extraction...")
+        active_conversions[user_id]["recent_logs"].append("🤖 Using AgentRouter AI for extraction...")
 
         # Define progress callback
         def update_progress(progress_percent, status_msg):
@@ -627,7 +627,7 @@ async def handle_pdf(client, message: Message):
         await status_message.edit_text(
             update_progress_message(
                 document.file_name,
-                "Initializing Gemini AI extraction...",
+                "Initializing AgentRouter AI extraction...",
                 5,
                 progress.get_elapsed_time(),
                 "Processing with AI...",
@@ -637,8 +637,8 @@ async def handle_pdf(client, message: Message):
             parse_mode=ParseMode.HTML
         )
 
-        # Process with Gemini (uses AI for intelligent extraction)
-        result_json = process_questions_gemini(
+        # Process with AgentRouter AI (uses vision model for extraction)
+        result_json = process_questions_agentrouter(
             temp_path,
             document.file_name.replace('.pdf', ''),
             progress_callback=update_progress

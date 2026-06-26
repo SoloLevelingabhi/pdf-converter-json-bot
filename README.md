@@ -1,11 +1,12 @@
 
 # PDF to JSON Converter Bot
 
-A powerful Telegram bot that converts SSC exam PDFs to structured JSON format using Google Gemini AI for intelligent extraction.
+A powerful Telegram bot that converts SSC exam PDFs to structured JSON format using AgentRouter API (supporting Gemini/Claude/GPT vision models).
 
 ## Features
 
-- AI-powered extraction using Google Gemini 1.5 Flash
+- AI-powered extraction using AgentRouter (OpenAI-compatible API)
+- Supports Gemini 2.5 Flash/Pro, Claude, GPT-4o vision models
 - Real-time progress tracking with ETA
 - Intelligent question detection and formatting
 - Preserves original wording and structure
@@ -54,7 +55,7 @@ A powerful Telegram bot that converts SSC exam PDFs to structured JSON format us
 
 1. Get Telegram Bot Token from [@BotFather](https://t.me/BotFather)
 2. Get Telegram API ID and Hash from [my.telegram.org](https://my.telegram.org)
-3. Get Gemini API Key from [Google AI Studio](https://aistudio.google.com/app/apikey)
+3. Get AgentRouter API Key from [agentrouter.org/console/token](https://agentrouter.org/console/token) - **$200 free credits included!**
 4. Get your Telegram User ID from [@userinfobot](https://t.me/userinfobot)
 
 ### Steps
@@ -76,7 +77,8 @@ A powerful Telegram bot that converts SSC exam PDFs to structured JSON format us
    API_ID=your_api_id
    API_HASH=your_api_hash
    BOT_TOKEN=your_bot_token
-   GEMINI_API_KEY=your_gemini_api_key
+   AGENTROUTER_API_KEY=sk-your_agentrouter_key
+   VISION_MODEL=google/gemini-2.5-flash
    OWNER_ID=your_telegram_id
    DATABASE_NAME=pdf_converter
    ```
@@ -95,6 +97,15 @@ A powerful Telegram bot that converts SSC exam PDFs to structured JSON format us
 7. Start Worker:
    - Go to "Resources" tab
    - Enable the worker dyno
+
+## Available Vision Models on AgentRouter
+
+| Model | Best For | Pricing |
+|-------|----------|---------|
+| `google/gemini-2.5-flash` | Fast, cost-effective | $0.075/1M input |
+| `google/gemini-2.5-pro` | Higher accuracy | $1.25/1M input |
+| `anthropic/claude-3-5-sonnet` | Complex documents | $3/1M input |
+| `openai/gpt-4o` | General purpose | $2.5/1M input |
 
 ## Local Development
 
@@ -119,7 +130,8 @@ A powerful Telegram bot that converts SSC exam PDFs to structured JSON format us
    API_ID=your_api_id
    API_HASH=your_api_hash
    BOT_TOKEN=your_bot_token
-   GEMINI_API_KEY=your_gemini_api_key
+   AGENTROUTER_API_KEY=sk-your_agentrouter_key
+   VISION_MODEL=google/gemini-2.5-flash
    OWNER_ID=your_telegram_id
    DATABASE_NAME=pdf_converter
    ```
@@ -144,7 +156,7 @@ A powerful Telegram bot that converts SSC exam PDFs to structured JSON format us
 pdf-converter-bot/
 ├── main.py           # Main bot logic
 ├── config.py         # Configuration settings
-├── utils.py          # Gemini AI extraction logic
+├── utils.py          # AgentRouter AI extraction logic
 ├── requirements.txt  # Python dependencies
 ├── Dockerfile         # Docker configuration
 ├── docker-compose.yml # Docker Compose setup
@@ -160,6 +172,14 @@ pdf-converter-bot/
 
 - Maximum PDF file size: 50MB
 - Works with both text-based and scanned PDFs
-- Gemini API free tier: 1500 requests/day
-- If Gemini extraction fails, falls back to regex extraction
+- AgentRouter provides $200 free credits for new users
+- If AI extraction fails, falls back to regex extraction
+- Uses OpenAI-compatible API (https://agentrouter.org/v1)
 
+## Get AgentRouter API Key
+
+1. Visit https://agentrouter.org/register
+2. Create account (no credit card required)
+3. Go to https://agentrouter.org/console/token
+4. Create an API key
+5. You get $200 free credits!

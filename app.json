@@ -30,9 +30,14 @@
       "description": "Your Telegram user ID",
       "required": true
     },
-    "GEMINI_API_KEY": {
-      "description": "Google Gemini API key for AI-powered PDF extraction",
+    "AGENTROUTER_API_KEY": {
+      "description": "AgentRouter API key (get from https://agentrouter.org/console/token)",
       "required": true
+    },
+    "VISION_MODEL": {
+      "description": "Vision model for PDF extraction (google/gemini-2.5-flash, google/gemini-2.5-pro)",
+      "required": false,
+      "value": "google/gemini-2.5-flash"
     },
     "LOG_LEVEL": {
       "description": "Logging level",
