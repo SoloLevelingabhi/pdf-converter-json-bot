@@ -14,6 +14,7 @@ from pathlib import Path
 
 from pyrogram import Client, filters
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.enums import ParseMode
 from pyrogram.errors import FloodWait, RPCError
 from PyPDF2 import PdfReader
 import pymongo
@@ -53,8 +54,7 @@ app = Client(
     "pdf_converter_bot",
     api_id=Config.API_ID,
     api_hash=Config.API_HASH,
-    bot_token=Config.BOT_TOKEN,
-    parse_mode="html"
+    bot_token=Config.BOT_TOKEN
 )
 
 # Store user sessions with progress tracking
@@ -68,10 +68,10 @@ active_conversions: Dict[int, Dict] = {}
 async def start_command(client, message: Message):
     """Handle /start command with enhanced UI"""
     user = message.from_user
-    welcome_text = f"""
+    welcome_text = """
 🌟 <b>Welcome to PDF to JSON Converter Bot!</b>
 
-Hello <b>{user.first_name}</b>! 👋
+Hello <b>{}</b>! 👋
 
 I'm an advanced bot designed to convert SSC exam PDFs to structured JSON format with precision.
 
@@ -98,7 +98,7 @@ I'm an advanced bot designed to convert SSC exam PDFs to structured JSON format 
 4. Get your JSON file!
 
 <b>⚠️ Note:</b> Maximum file size: 50MB
-    """
+    """.format(user.first_name)
     
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("🔄 Start Conversion", callback_data="start_convert")],
@@ -106,7 +106,7 @@ I'm an advanced bot designed to convert SSC exam PDFs to structured JSON format 
         [InlineKeyboardButton("❓ Help", callback_data="help")]
     ])
     
-    await message.reply_text(welcome_text, reply_markup=keyboard)
+    await message.reply_text(welcome_text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
 
 # Command handler for /help
 @app.on_message(filters.command("help"))
@@ -153,7 +153,7 @@ Converts SSC exam PDFs to structured JSON format with all questions, options, an
 <b>🆘 Need Help?</b>
 Contact: @support_username
     """
-    await message.reply_text(help_text)
+    await message.reply_text(help_text, parse_mode=ParseMode.HTML)
 
 # Command handler for /pdf2json
 @app.on_message(filters.command("pdf2json"))
@@ -171,7 +171,8 @@ async def pdf2json_command(client, message: Message):
         await message.reply_text(
             "⚠️ <b>You have an active conversion!</b>\n\n"
             "Would you like to continue or start a new one?",
-            reply_markup=keyboard
+            reply_markup=keyboard,
+            parse_mode=ParseMode.HTML
         )
         return
     
@@ -192,7 +193,8 @@ async def pdf2json_command(client, message: Message):
         "• Clear numbering (1., 2., etc.)\n"
         "• Text must be selectable\n\n"
         "Press the button below to upload or send the file directly.",
-        reply_markup=keyboard
+        reply_markup=keyboard,
+        parse_mode=ParseMode.HTML
     )
     
     # Set user session state
@@ -260,7 +262,7 @@ async def status_command(client, message: Message):
 
 Use /pdf2json to start a new conversion!
     """
-    await message.reply_text(status_text)
+    await message.reply_text(status_text, parse_mode=ParseMode.HTML)
 
 # Command handler for /progress
 @app.on_message(filters.command("progress"))
@@ -272,7 +274,8 @@ async def progress_command(client, message: Message):
         await message.reply_text(
             "❌ <b>No active conversion</b>\n\n"
             "You don't have any conversion in progress.\n"
-            "Start one with /pdf2json"
+            "Start one with /pdf2json",
+            parse_mode=ParseMode.HTML
         )
         return
     
@@ -327,7 +330,7 @@ async def send_progress_update(message: Message, progress_data: Dict):
         [InlineKeyboardButton("❌ Cancel", callback_data="cancel_conversion")]
     ])
     
-    await message.reply_text(progress_text, reply_markup=keyboard)
+    await message.reply_text(progress_text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
 
 def create_progress_bar(percentage: float, length: int = 20) -> str:
     """Create a visual progress bar"""
@@ -434,7 +437,8 @@ async def handle_callback(client, callback_query: CallbackQuery):
                 "You can either:\n"
                 "• Upload as file\n"
                 "• Forward a PDF file\n\n"
-                "<i>Waiting for your PDF...</i>"
+                "<i>Waiting for your PDF...</i>",
+                parse_mode=ParseMode.HTML
             )
             
         elif data == "start_convert":
@@ -473,7 +477,8 @@ async def handle_callback(client, callback_query: CallbackQuery):
             await callback_query.message.reply_text(
                 f"📋 <b>Sample Output Format</b>\n\n"
                 f"<code>{sample[:1000]}...</code>\n\n"
-                f"Full output includes all 185 questions with complete details."
+                f"Full output includes all 185 questions with complete details.",
+                parse_mode=ParseMode.HTML
             )
             
         elif data == "continue_prev":
@@ -502,7 +507,8 @@ async def handle_callback(client, callback_query: CallbackQuery):
             await callback_query.message.reply_text(
                 "✅ <b>Conversion Cancelled</b>\n\n"
                 "Your conversion has been stopped.\n"
-                "Start a new one with /pdf2json"
+                "Start a new one with /pdf2json",
+                parse_mode=ParseMode.HTML
             )
             
         elif data == "cancel":
@@ -510,7 +516,8 @@ async def handle_callback(client, callback_query: CallbackQuery):
                 del user_sessions[user_id]
             await callback_query.message.reply_text(
                 "❌ <b>Operation Cancelled</b>\n\n"
-                "You can start again anytime with /pdf2json"
+                "You can start again anytime with /pdf2json",
+                parse_mode=ParseMode.HTML
             )
             
     except Exception as e:
@@ -529,7 +536,8 @@ async def handle_pdf(client, message: Message):
     if user_id not in user_sessions or user_sessions[user_id].get("state") != "waiting_for_pdf":
         await message.reply_text(
             "⚠️ <b>Please start the process first!</b>\n\n"
-            "Use /pdf2json command to begin the conversion."
+            "Use /pdf2json command to begin the conversion.",
+            parse_mode=ParseMode.HTML
         )
         return
     
@@ -540,7 +548,8 @@ async def handle_pdf(client, message: Message):
             "❌ <b>Invalid file format</b>\n\n"
             "Please upload a PDF file only.\n"
             "Supported: .pdf\n\n"
-            "Use /pdf2json to start again."
+            "Use /pdf2json to start again.",
+            parse_mode=ParseMode.HTML
         )
         return
     
@@ -550,7 +559,8 @@ async def handle_pdf(client, message: Message):
             "❌ <b>File too large</b>\n\n"
             f"📦 Your file: {format_file_size(document.file_size)}\n"
             f"📦 Maximum allowed: 50MB\n\n"
-            "Please compress the file or split it into smaller parts."
+            "Please compress the file or split it into smaller parts.",
+            parse_mode=ParseMode.HTML
         )
         return
     
@@ -578,7 +588,8 @@ async def handle_pdf(client, message: Message):
         "🔄 <b>Status:</b> <code>Initializing...</code>\n"
         "📊 <b>Progress:</b> 0%\n"
         "⏱️ <b>ETA:</b> Calculating...\n\n"
-        "<i>Please wait while I process your file...</i>"
+        "<i>Please wait while I process your file...</i>",
+        parse_mode=ParseMode.HTML
     )
     
     temp_path = None
@@ -590,7 +601,8 @@ async def handle_pdf(client, message: Message):
         active_conversions[user_id]["recent_logs"].append("📥 Downloading file...")
         
         await status_message.edit_text(
-            update_progress_message(document.file_name, "Downloading PDF...", 0, 0, 0)
+            update_progress_message(document.file_name, "Downloading PDF...", 0, 0, 0),
+            parse_mode=ParseMode.HTML
         )
         
         with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
@@ -628,7 +640,8 @@ async def handle_pdf(client, message: Message):
                             eta,
                             page_num,
                             total_pages
-                        )
+                        ),
+                        parse_mode=ParseMode.HTML
                     )
                 
                 page_text = page.extract_text()
@@ -662,7 +675,8 @@ async def handle_pdf(client, message: Message):
                 "Processing...",
                 total_pages,
                 total_pages
-            )
+            ),
+            parse_mode=ParseMode.HTML
         )
         
         # Process questions with status updates
@@ -685,7 +699,8 @@ async def handle_pdf(client, message: Message):
                 "Almost done...",
                 total_pages,
                 total_pages
-            )
+            ),
+            parse_mode=ParseMode.HTML
         )
         
         validation = validate_json_output(result_json, questions_count)
@@ -712,7 +727,8 @@ async def handle_pdf(client, message: Message):
             f"📊 <b>Questions Found:</b> <code>{questions_count}</code>\n"
             f"⏱️ <b>Time Taken:</b> <code>{format_time(processing_time)}</code>\n"
             f"📏 <b>Output Size:</b> <code>{format_file_size(os.path.getsize(json_path))}</code>\n\n"
-            "📤 <b>Sending the JSON file...</b>"
+            "📤 <b>Sending the JSON file...</b>",
+            parse_mode=ParseMode.HTML
         )
         
         # Send JSON file
@@ -734,7 +750,8 @@ async def handle_pdf(client, message: Message):
                 f"• Success Rate: {get_success_rate()}\n"
                 f"• Avg Time: {get_avg_processing_time()}"
             ),
-            file_name=json_filename
+            file_name=json_filename,
+            parse_mode=ParseMode.HTML
         )
         
         # Send summary as text file for backup
@@ -771,7 +788,8 @@ async def handle_pdf(client, message: Message):
             chat_id=user_id,
             document=txt_path,
             caption="📋 <b>Conversion Report</b>\n\nDetailed report with statistics.",
-            file_name=f"{document.file_name.replace('.pdf', '')}_report.txt"
+            file_name=f"{document.file_name.replace('.pdf', '')}_report.txt",
+            parse_mode=ParseMode.HTML
         )
         
         # Save to MongoDB
@@ -804,7 +822,8 @@ async def handle_pdf(client, message: Message):
         await status_message.edit_text(
             f"⏳ <b>Rate limited by Telegram</b>\n\n"
             f"Please wait {e.x} seconds before trying again.\n"
-            f"This is a Telegram limitation, not a bot error."
+            f"This is a Telegram limitation, not a bot error.",
+            parse_mode=ParseMode.HTML
         )
         await asyncio.sleep(e.x)
         
@@ -824,7 +843,8 @@ async def handle_pdf(client, message: Message):
             f"• Check file size limits\n\n"
             f"<b>Full Error:</b>\n"
             f"<code>{error_traceback[:500]}...</code>\n\n"
-            f"Please try again with /pdf2json"
+            f"Please try again with /pdf2json",
+            parse_mode=ParseMode.HTML
         )
         
         # Send error log as text file
@@ -836,7 +856,8 @@ async def handle_pdf(client, message: Message):
             chat_id=user_id,
             document=error_file.name,
             caption="🐛 <b>Error Log</b>\n\nPlease share this with support if the issue persists.",
-            file_name=f"error_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+            file_name=f"error_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+            parse_mode=ParseMode.HTML
         )
         
         os.unlink(error_file.name)
@@ -902,7 +923,8 @@ async def handle_forwarded_pdf(client, message: Message):
         await message.reply_text(
             "❌ <b>Invalid file format</b>\n\n"
             "Please forward a PDF file only.\n"
-            "Use /pdf2json to start."
+            "Use /pdf2json to start.",
+            parse_mode=ParseMode.HTML
         )
         return
     
@@ -918,12 +940,21 @@ async def cancel_command(client, message: Message):
     if user_id in active_conversions:
         active_conversions[user_id]["status"] = "cancelled"
         del active_conversions[user_id]
-        await message.reply_text("✅ <b>Conversion Cancelled</b>\n\nYour conversion has been stopped.")
+        await message.reply_text(
+            "✅ <b>Conversion Cancelled</b>\n\nYour conversion has been stopped.",
+            parse_mode=ParseMode.HTML
+        )
     elif user_id in user_sessions:
         del user_sessions[user_id]
-        await message.reply_text("✅ <b>Operation Cancelled</b>\n\nYou can start again anytime.")
+        await message.reply_text(
+            "✅ <b>Operation Cancelled</b>\n\nYou can start again anytime.",
+            parse_mode=ParseMode.HTML
+        )
     else:
-        await message.reply_text("❌ <b>No active operation</b>\n\nYou don't have any ongoing operation.")
+        await message.reply_text(
+            "❌ <b>No active operation</b>\n\nYou don't have any ongoing operation.",
+            parse_mode=ParseMode.HTML
+        )
 
 # Error handler
 @app.on_message()
@@ -936,7 +967,8 @@ async def handle_other_messages(client, message: Message):
         await message.reply_text(
             "⚠️ <b>Please upload a PDF file</b>\n\n"
             "I need a PDF file to process.\n"
-            "Use /pdf2json to start over."
+            "Use /pdf2json to start over.",
+            parse_mode=ParseMode.HTML
         )
     else:
         # Ignore other messages
@@ -945,7 +977,6 @@ async def handle_other_messages(client, message: Message):
 if __name__ == "__main__":
     print("🤖 Starting PDF to JSON Converter Bot...")
     print("📝 Version: 2.0.0")
-    print("👤 Developer: Your Name")
     print("🐛 Debug Mode: Enabled")
     print("=" * 50)
     
