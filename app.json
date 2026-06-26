@@ -30,6 +30,10 @@
       "description": "Your Telegram user ID",
       "required": true
     },
+    "GEMINI_API_KEY": {
+      "description": "Google Gemini API key for AI-powered PDF extraction",
+      "required": true
+    },
     "LOG_LEVEL": {
       "description": "Logging level",
       "required": false,
@@ -39,6 +43,9 @@
   "buildpacks": [
     {
       "url": "https://github.com/jonathanong/heroku-buildpack-ffmpeg-latest.git"
+    },
+    {
+      "url": "https://github.com/sunny4381/heroku-buildpack-poppler.git"
     },
     {
       "url": "heroku/python"

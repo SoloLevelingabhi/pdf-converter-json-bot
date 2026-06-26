@@ -1,7 +1,10 @@
 FROM python:3.10.6-slim-buster
 
-# Install FFmpeg
-RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
+# Install FFmpeg and Poppler (for pdf2image)
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    poppler-utils \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

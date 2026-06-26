@@ -28,6 +28,7 @@ from utils import (
     ProgressTracker,
     extract_pdf_text,
     process_questions,
+    process_questions_gemini,
     validate_json_output,
     format_file_size,
     calculate_eta
@@ -606,79 +607,42 @@ async def handle_pdf(client, message: Message):
         with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
             temp_path = temp_file.name
             await client.download_media(message, file_name=temp_path)
-        
+
         # Get total pages
         reader = PdfReader(temp_path)
         total_pages = len(reader.pages)
         active_conversions[user_id]["total_pages"] = total_pages
-        
+
         active_conversions[user_id]["recent_logs"].append(f"📄 Found {total_pages} pages")
-        
-        # Extract text with progress
-        active_conversions[user_id]["current_step"] = "Extracting text..."
-        extracted_text = ""
-        
-        for page_num, page in enumerate(reader.pages, 1):
-            try:
-                # Update progress
-                progress_percent = (page_num / total_pages) * 50  # First 50% for extraction
-                active_conversions[user_id]["pages_processed"] = page_num
-                
-                # Update status message every 5 pages
-                if page_num % 5 == 0:
-                    elapsed = progress.get_elapsed_time()
-                    eta = progress.calculate_eta(page_num, total_pages)
-                    
-                    await status_message.edit_text(
-                        update_progress_message(
-                            document.file_name,
-                            f"Extracting page {page_num}/{total_pages}",
-                            progress_percent,
-                            elapsed,
-                            eta,
-                            page_num,
-                            total_pages
-                        ),
-                        parse_mode=ParseMode.HTML
-                    )
-                
-                page_text = page.extract_text()
-                if page_text:
-                    extracted_text += page_text + "\n"
-                    
-                active_conversions[user_id]["recent_logs"].append(f"✅ Page {page_num} extracted")
-                
-                # Add small delay to prevent flooding
-                await asyncio.sleep(0.1)
-                
-            except Exception as e:
-                logger.error(f"Page {page_num} extraction error: {e}")
-                active_conversions[user_id]["recent_logs"].append(f"⚠️ Page {page_num} error: {str(e)[:50]}")
-                continue
-        
-        if not extracted_text.strip():
-            raise ValueError("No text could be extracted from the PDF. It might be a scanned document.")
-        
-        active_conversions[user_id]["current_step"] = "Processing questions..."
-        active_conversions[user_id]["recent_logs"].append("🧠 Processing questions...")
-        
-        # Process the extracted text
-        progress_percent = 51
+
+        # Process with Gemini AI
+        active_conversions[user_id]["current_step"] = "Converting PDF to images..."
+        active_conversions[user_id]["recent_logs"].append("🤖 Using Gemini AI for extraction...")
+
+        # Define progress callback
+        def update_progress(progress_percent, status_msg):
+            active_conversions[user_id]["current_step"] = status_msg
+            active_conversions[user_id]["pages_processed"] = int(total_pages * progress_percent / 100)
+
         await status_message.edit_text(
             update_progress_message(
                 document.file_name,
-                "Processing questions with AI...",
-                progress_percent,
+                "Initializing Gemini AI extraction...",
+                5,
                 progress.get_elapsed_time(),
-                "Processing...",
-                total_pages,
+                "Processing with AI...",
+                0,
                 total_pages
             ),
             parse_mode=ParseMode.HTML
         )
-        
-        # Process questions with status updates
-        result_json = process_questions(extracted_text, document.file_name.replace('.pdf', ''))
+
+        # Process with Gemini (uses AI for intelligent extraction)
+        result_json = process_questions_gemini(
+            temp_path,
+            document.file_name.replace('.pdf', ''),
+            progress_callback=update_progress
+        )
         
         # Update question count
         questions_count = len(result_json.get("questions", []))

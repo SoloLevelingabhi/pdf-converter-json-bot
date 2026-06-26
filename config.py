@@ -27,6 +27,9 @@ class Config:
     BATCH_SIZE = int(os.getenv("BATCH_SIZE", 10))
     MAX_CONCURRENT = int(os.getenv("MAX_CONCURRENT", 5))
     
+    # Gemini API Configuration
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+
     # Feature Flags
     ENABLE_OCR = os.getenv("ENABLE_OCR", "false").lower() == "true"
     ENABLE_CACHE = os.getenv("ENABLE_CACHE", "true").lower() == "true"
