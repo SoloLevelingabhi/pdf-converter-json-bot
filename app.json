@@ -1,0 +1,58 @@
+{
+  "name": "PDF to JSON Converter Bot",
+  "description": "Telegram bot to convert SSC exam PDFs to JSON format",
+  "repository": "https://github.com/yourusername/pdf-converter-bot",
+  "logo": "https://your-logo-url.com/logo.png",
+  "keywords": ["telegram", "bot", "pdf", "json", "converter"],
+  "env": {
+    "API_ID": {
+      "description": "Your Telegram API ID",
+      "required": true
+    },
+    "API_HASH": {
+      "description": "Your Telegram API Hash",
+      "required": true
+    },
+    "BOT_TOKEN": {
+      "description": "Your Telegram Bot Token",
+      "required": true
+    },
+    "MONGO_URI": {
+      "description": "MongoDB connection URI",
+      "required": true
+    },
+    "DATABASE_NAME": {
+      "description": "Database name",
+      "required": true,
+      "value": "pdf_converter"
+    },
+    "OWNER_ID": {
+      "description": "Your Telegram user ID",
+      "required": true
+    },
+    "LOG_LEVEL": {
+      "description": "Logging level",
+      "required": false,
+      "value": "INFO"
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ],
+  "addons": [
+    {
+      "plan": "mongolab:sandbox"
+    }
+  ],
+  "scripts": {
+    "postdeploy": "python -c 'print(\"Bot deployed successfully!\")'"
+  },
+  "formation": {
+    "worker": {
+      "quantity": 1,
+      "size": "eco"
+    }
+  }
+}
