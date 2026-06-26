@@ -45,7 +45,6 @@ try:
     logger.info("✅ MongoDB connected successfully")
 except Exception as e:
     logger.error(f"❌ MongoDB connection failed: {e}")
-    db = None
     sessions_collection = None
     conversions_collection = None
 
@@ -205,7 +204,7 @@ async def pdf2json_command(client, message: Message):
     }
     
     # Save session to MongoDB if available
-    if sessions_collection:
+    if sessions_collection is not None:
         try:
             sessions_collection.update_one(
                 {"user_id": user_id},
@@ -367,7 +366,7 @@ def get_recent_activity(progress_data: Dict) -> str:
 
 def get_today_count() -> int:
     """Get number of conversions today"""
-    if not conversions_collection:
+    if conversions_collection is None:
         return 0
     try:
         today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -388,7 +387,7 @@ def get_uptime() -> str:
 
 def get_avg_processing_time() -> str:
     """Get average processing time"""
-    if not conversions_collection:
+    if conversions_collection is None:
         return "N/A"
     try:
         pipeline = [
@@ -405,7 +404,7 @@ def get_avg_processing_time() -> str:
 
 def get_success_rate() -> str:
     """Get conversion success rate"""
-    if not conversions_collection:
+    if conversions_collection is None:
         return "N/A"
     try:
         total = conversions_collection.count_documents({})
@@ -482,7 +481,6 @@ async def handle_callback(client, callback_query: CallbackQuery):
             )
             
         elif data == "continue_prev":
-            # Continue previous conversion
             if user_id in active_conversions:
                 await send_progress_update(callback_query.message, active_conversions[user_id])
             else:
@@ -792,8 +790,8 @@ async def handle_pdf(client, message: Message):
             parse_mode=ParseMode.HTML
         )
         
-        # Save to MongoDB
-        if conversions_collection:
+        # Save to MongoDB if available
+        if conversions_collection is not None:
             try:
                 conversions_collection.insert_one({
                     "user_id": user_id,
